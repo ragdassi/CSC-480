@@ -11,7 +11,7 @@ suits = ['C', 'D', 'H', 'S']
 ranks = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
 
 
-# HELPERS
+# HELPER FUNCTIONS
 def card_to_index(card_str: str) -> int:
     """Convert card string (e.g. 'AH') to integer index 0-51."""
     rank_str, suit_str = card_str[:-1], card_str[-1]
@@ -38,7 +38,6 @@ def card_to_rs(idx: int) -> tuple[int,int]:
     suit, rank = divmod(idx, 13)
     return rank + 2, suit
 
-# Converts 0–12 to 2–14 (2 through Ace)
 def rank_to_value(rank):
     return [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14][rank]
 
@@ -52,11 +51,9 @@ def has_straight(ranks):
     return False, None
 
 def create_deck()->list[int]:
-    """Create a standard 52-card deck as a list of integers 0–51."""
     return list(range(52))
 
 def shuffle_deck(deck:list[int])->list[int]:
-    """Shuffle the deck in place."""
     random.shuffle(deck)
     return deck
 
@@ -67,6 +64,8 @@ def draw_cards(deck: list[int], num_cards: int) -> list[int]:
     del deck[:num_cards]
     return drawn_cards
 
+
+### CRITICAL FUNCTIONS ###
 
 # Poker Hand Evaluation
 def rank_hand(indices: list[int]) -> tuple:
@@ -79,7 +78,7 @@ def rank_hand(indices: list[int]) -> tuple:
     flush_suit = None
     for s, cnt in Counter(suits).items():
         if cnt >= 5:
-            # need all 5 to be the same suit
+            # found a flush
             flush_suit = s
             break
     # Straight flush
@@ -88,7 +87,7 @@ def rank_hand(indices: list[int]) -> tuple:
         sf, high_sf = has_straight(flush_vals)
         if sf:
             return (9, high_sf)
-    # Four, Full, Three, Two Pair, Pair by freq
+        
     kinds = [v for v, c in freq]
     counts_only = [c for v, c in freq]
     # Four of a Kind
@@ -130,17 +129,17 @@ def simulate_win_probability(my_hole: list[str], community: list[str], time_limi
     # Prepare fixed cards
     my_idx = [card_to_index(c) for c in my_hole]
     comm_idx = [card_to_index(c) for c in community]
-    # Build deck
     deck = create_deck()
     for c in my_idx + comm_idx:
         deck.remove(c)
-    # All possible opponent  combos
+    # All possible opponent combinations (IDK what they are!)
     opp_combos = list(itertools.combinations(deck, 2))
     stats = {combo: {'wins':0, 'plays':0} for combo in opp_combos}
     total_plays = 0
     wins = 0
     start = time.time()
     while time.time() - start < time_limit:
+        # find best combination to simulate using UCB1 
         best_ucb = -1
         chosen = None
         for combo, st in stats.items():
@@ -150,9 +149,9 @@ def simulate_win_probability(my_hole: list[str], community: list[str], time_limi
                 win_rate = st['wins']/st['plays']
                 ucb = win_rate + (2*(math.log(total_plays)/st['plays']))**0.5
             if ucb > best_ucb:
-                # update best UCB
                 best_ucb, chosen = ucb, combo
         opp_idx = list(chosen)
+        
         # Remove opponent cards
         trial_deck = deck.copy()
         trial_deck.remove(opp_idx[0]); trial_deck.remove(opp_idx[1])
@@ -161,7 +160,7 @@ def simulate_win_probability(my_hole: list[str], community: list[str], time_limi
         shuffle_deck(trial_deck)
         extra = trial_deck[:needed]
         
-        # Evaluate
+        # Evaluate hands::
         my_best = max(itertools.combinations(my_idx + comm_idx + extra, 5), key=lambda h: rank_hand(list(h)))
         opp_best = max(itertools.combinations(opp_idx + comm_idx + extra, 5), key=lambda h: rank_hand(list(h)))
         if rank_hand(list(my_best)) > rank_hand(list(opp_best)):
@@ -169,20 +168,20 @@ def simulate_win_probability(my_hole: list[str], community: list[str], time_limi
             stats[chosen]['wins'] += 1
         stats[chosen]['plays'] += 1
         total_plays += 1
+
     return wins/total_plays if total_plays>0 else 0.0
 
 
-
 def decide_action(my_hole: list[str], community: list[str]) -> str:
+    # stay or fold ?? Make a calculated move here
     prob = simulate_win_probability(my_hole, community, time_limit=10.0)
     print(f"Estimated win probability: {prob:.2%}")
     return 'stay' if prob >= 0.5 else 'fold'
 
 
+### TESTS - should cover edge cases, authored by ChatGBT ###
 
 
-
-### TESTS ###
 def test_simulation_scenarios():
     # Obvious winning hand: Royal Flush vs unknown
     win_prob = simulate_win_probability(['AH', 'KH'], ['QH', 'JH', 'TH'], time_limit=2)
@@ -255,8 +254,6 @@ def test_no_duplicate_cards():
     for c in hole + board:
         deck.remove(card_to_index(c))
     assert len(deck) == len(set(deck))
-
-
 
 
 def test_hand_evaluation():
